@@ -5,25 +5,26 @@ services:
     build:
       context: ./Database
       dockerfile: Dockerfile
-    image: dacpac-image
+    image: pfm-db:latest
     container_name: pfm-db
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong!Passw0rd
-    ports:
-      - "1433:1433"
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
     networks:
       - app-network
+    volumes:
+      - mssql_data:/var/opt/mssql/data
+      - mssql_log:/var/opt/mssql/log
     restart: unless-stopped
 
   webapi:
     build:
       context: ./
       dockerfile: ./WebApi/Dockerfile
-    image: webapi-image
+    image: pfm-webapi:latest
     container_name: pfm-webapi
     environment:  
-      - ConnectionStrings__DefaultConnection=Server=database;Database=PersonalFinanceManager;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;Encrypt=False;
+      - ConnectionStrings__DefaultConnection=Server=database;Database=PersonalFinanceManager;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;
       - ASPNETCORE_ENVIRONMENT=DEVELOPMENT
     ports:
       - "5000:80"
@@ -52,3 +53,7 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  mssql_data:
+  mssql_log:
