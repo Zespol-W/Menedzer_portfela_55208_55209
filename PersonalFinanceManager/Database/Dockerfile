@@ -13,7 +13,11 @@ RUN apt-get update && \
     chmod +x /opt/sqlpackage/sqlpackage && \
     rm sqlpackage.zip
 
-RUN mkdir -p /var/opt/mssql/dacpac
+RUN mkdir -p /var/opt/mssql/data /var/opt/mssql/log /var/opt/mssql/dacpac && \
+    chown -R mssql:0 /var/opt/mssql/data /var/opt/mssql/log /var/opt/mssql/dacpac && \
+    chmod -R g=u /var/opt/mssql/data /var/opt/mssql/log /var/opt/mssql/dacpac
+
+    RUN mkdir -p /var/opt/mssql/dacpac
 
 COPY --from=build /app/out/*.dacpac /var/opt/mssql/dacpac/Database.dacpac
 
