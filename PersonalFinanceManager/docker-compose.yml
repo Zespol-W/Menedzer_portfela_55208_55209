@@ -10,6 +10,9 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - APP_DB_USER=${APP_DB_USER}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD}
     networks:
       - app-network
     volumes:
@@ -24,12 +27,8 @@ services:
     image: pfm-webapi:latest
     container_name: pfm-webapi
     environment:  
-      - ConnectionStrings__DefaultConnection=Server=database;Database=PersonalFinanceManager;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;
-      - ASPNETCORE_ENVIRONMENT=DEVELOPMENT
-    ports:
-      - "5000:80"
-      - "5001:443"
-      - "5002:8081"
+      - ConnectionStrings__DefaultConnection=Server=${DB_HOST};Database=${DB_NAME};User Id=${APP_DB_USER};Password=${APP_DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
     depends_on:
       - database
     networks:

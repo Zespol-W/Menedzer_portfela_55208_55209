@@ -19,7 +19,10 @@ echo "Wdrażam plik .dacpac..."
 /opt/sqlpackage/sqlpackage \
     /Action:Publish \
     /SourceFile:/var/opt/mssql/dacpac/Database.dacpac \
-    /TargetConnectionString:"Server=localhost;Database=PersonalFinanceManager;User Id=sa;Password=$MSSQL_SA_PASSWORD;Encrypt=False;TrustServerCertificate=True;" \
+    /TargetConnectionString:"Server=localhost;Database=$DB_NAME;User Id=sa;Password=$MSSQL_SA_PASSWORD;Encrypt=False;TrustServerCertificate=True;" \
+    /v:APP_DB_USER=$APP_DB_USER \
+    /v:APP_DB_PASSWORD=$APP_DB_PASSWORD \
+    /v:DB_NAME=$DB_NAME \
     /p:BlockOnPossibleDataLoss=false
 
 # Pozwala procesowi sqlservr działać dalej na pierwszym planie

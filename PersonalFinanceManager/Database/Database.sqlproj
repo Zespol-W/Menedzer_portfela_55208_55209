@@ -6,5 +6,20 @@
     <TargetDatabaseSet>True</TargetDatabaseSet>
     <SqlTargetName>Database</SqlTargetName>
   </PropertyGroup>
-
-  </Project>
+  <ItemGroup>
+  <PostDeploy Include="PostDeployment.sql" />
+  
+  <SqlCmdVariable Include="APP_DB_USER">
+    <DefaultValue>pfm_user</DefaultValue>
+    <Value>$(SqlCmdVar__1)</Value>
+  </SqlCmdVariable>
+  <SqlCmdVariable Include="APP_DB_PASSWORD">
+    <DefaultValue>ChangeMe123!</DefaultValue>
+    <Value>$(SqlCmdVar__2)</Value>
+  </SqlCmdVariable>
+  <SqlCmdVariable Include="DB_NAME">
+    <DefaultValue>PersonalFinanceManager</DefaultValue>
+    <Value>$(SqlCmdVar__3)</Value>
+  </SqlCmdVariable>
+</ItemGroup>
+</Project>
