@@ -1,0 +1,6 @@
+# przykładowy plik docker-compose.override.yml
+# pozwala nadpisać kondiguracje z docker-compose w celu wystawienia portów na zewnatrz
+services:
+  database:
+    ports:
+      - "1433:1433"
