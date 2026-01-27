@@ -76,6 +76,8 @@ Dostęp do usług uzyskasz na poniższych portach.
 
 ---
 
+## Opis
+
 **Personal Finance Manager** to aplikacja webowa służąca do zarządzania finansami osobistymi. Umożliwia użytkownikom pełną kontrolę nad kontami bankowymi, transakcjami oraz oszczędnościami. Aplikacja oferuje przejrzysty interfejs, przemyślaną architekturę i możliwość łatwego rozszerzania w przyszłości.
 
 ---
