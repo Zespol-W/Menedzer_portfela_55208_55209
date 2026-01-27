@@ -1,7 +1,7 @@
 <div class="mt-4">
     <h1 class="text-light">Twoje Kategorie Wydatków</h1>
     <p class="lead text-light">Zarządzaj swoimi kategoriami, aby lepiej śledzić wydatki.</p>
-    <hr>
+    <hr class="text-light">
 
     <div class="d-flex justify-content-end mb-3">
         <a href="/categories/add" class="btn btn-success">Dodaj Nową Kategorię</a>
@@ -21,22 +21,27 @@
             <tbody>
                 <% categories.forEach(category => { %>
                 <tr>
+                    <%# Używamy category.id bo WebAPI zwraca 'id' %>
                     <td><%= category.name %></td>
                     <td><%= category.description || 'Brak opisu' %></td>
                     <td>
                         <% if (category.color) { %>
-                            <span style="display: inline-block; width: 20px; height: 20px; background-color: <%= category.color %>; border-radius: 4px; vertical-align: middle;"></span>
-                            <%= category.color %>
+                            <span style="display: inline-block; width: 20px; height: 20px; background-color: <%= category.color %>; border-radius: 4px; vertical-align: middle; border: 1px solid #fff;"></span>
+                            <span class="ms-1"><%= category.color %></span>
                         <% } else { %>
-                            Brak
+                            <span class="text-muted">Brak</span>
                         <% } %>
                     </td>
                     <td>
-                        <a href="/categories/<%= category.id %>/edit" class="btn btn-sm btn-warning me-2">Edytuj</a>
-                        <form action="/categories/<%= category._id %>?_method=DELETE" method="POST" class="d-inline" onsubmit="return confirm('Czy na pewno chcesz usunąć tę kategorię?');">
-                            <button type="submit" class="btn btn-sm btn-danger">Usuń</button>
+                        <div class="btn-group btn-group-sm">
+                            <%# POPRAWKA: Zmiana ścieżki edycji na zgodną z Twoim routerem %>
+                            <a href="/categories/edit/<%= category.id %>" class="btn btn-warning">Edytuj</a>
+                            
+                            <%# POPRAWKA: Usunięcie podwójnego tagu form i zmiana _id na id %>
+                            <form action="/categories/delete/<%= category.id %>" method="POST" class="d-inline" onsubmit="return confirm('Czy na pewno chcesz usunąć tę kategorię?');">
+                                <button type="submit" class="btn btn-danger">Usuń</button>
                             </form>
-                        </form>
+                        </div>
                     </td>
                 </tr>
                 <% }) %>
@@ -44,7 +49,7 @@
         </table>
     </div>
     <% } else { %>
-    <div class="alert alert-info text-dark" role="alert">
+    <div class="alert alert-info" role="alert">
         Brak zdefiniowanych kategorii. <a href="/categories/add" class="alert-link">Dodaj pierwszą kategorię!</a>
     </div>
     <% } %>
