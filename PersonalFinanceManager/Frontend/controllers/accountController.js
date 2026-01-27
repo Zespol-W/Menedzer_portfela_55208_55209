@@ -1,5 +1,4 @@
 const Account = require('../models/Account');
-const { ensureAuthenticated } = require('./authController'); 
 
 exports.renderAccountsPage = async (req, res) => {
     try {
@@ -10,16 +9,14 @@ exports.renderAccountsPage = async (req, res) => {
         });
     } catch (error) {
         console.error('Błąd podczas ładowania listy kont:', error.message);
-        req.flash('error_msg', error.message);
+        req.flash('error_msg', 'Nie udało się pobrać listy kont.');
         res.redirect('/dashboard'); 
     }
 };
 
-
 exports.renderAddAccountPage = (req, res) => {
     res.render('accounts/add', {
         title: 'Dodaj Nowe Konto',
-        
         name: '',
         balance: 0,
         currency: 'PLN',
@@ -29,11 +26,9 @@ exports.renderAddAccountPage = (req, res) => {
     });
 };
 
-
 exports.addAccount = async (req, res) => {
     const { name, balance, currency, accountNumber, description, type } = req.body;
 
-    
     if (!name || !balance || !currency) {
         req.flash('error_msg', 'Nazwa, saldo i waluta konta są wymagane.');
         return res.render('accounts/add', {
@@ -43,20 +38,18 @@ exports.addAccount = async (req, res) => {
     }
 
     try {
+        // Upewnij się, że Account.add przyjmuje argumenty w tej kolejności
         await Account.add(name, balance, currency, accountNumber, description, type, req.session.token);
         req.flash('success_msg', 'Konto zostało dodane pomyślnie!');
         res.redirect('/accounts');
     } catch (error) {
-        console.error('Błąd podczas dodawania konta:', error.message);
         req.flash('error_msg', error.message);
         res.render('accounts/add', {
             title: 'Dodaj Nowe Konto',
-            name, balance, currency, accountNumber, description, type,
-            error_msg: req.flash('error_msg')
+            name, balance, currency, accountNumber, description, type
         });
     }
 };
-
 
 exports.renderEditAccountPage = async (req, res) => {
     try {
@@ -68,116 +61,85 @@ exports.renderEditAccountPage = async (req, res) => {
         res.render('accounts/edit', {
             title: `Edytuj Konto: ${account.name}`,
             account: account,
-            
+            // Używamy spójnego nazewnictwa pól (zgodnie z DTO)
             name: account.name,
             balance: account.balance,
-            currency: account.currency,
+            currency: account.currencyCode || account.currency,
             accountNumber: account.accountNumber,
             description: account.description,
             type: account.type
         });
     } catch (error) {
-        console.error('Błąd podczas ładowania strony edycji konta:', error.message);
         req.flash('error_msg', error.message);
         res.redirect('/accounts');
     }
 };
-
 
 exports.updateAccount = async (req, res) => {
     const { id } = req.params;
     const { name, balance, currency, accountNumber, description, type } = req.body;
 
-    
-    if (!name || !balance || !currency) {
-        req.flash('error_msg', 'Nazwa, saldo i waluta konta są wymagane.');
-        return res.render('accounts/edit', {
-            title: `Edytuj Konto`,
-            account: { _id: id, name, balance, currency, accountNumber, description, type },
-            name, balance, currency, accountNumber, description, type,
-            error_msg: req.flash('error_msg')
-        });
-    }
-
     try {
+        // Poprawka: id zamiast _id
         await Account.update(id, name, balance, currency, accountNumber, description, type, req.session.token);
-        req.flash('success_msg', 'Konto zostało zaktualizowane pomyślnie!');
+        req.flash('success_msg', 'Konto zostało zaktualizowane!');
         res.redirect('/accounts');
     } catch (error) {
-        console.error('Błąd podczas aktualizacji konta:', error.message);
         req.flash('error_msg', error.message);
         res.render('accounts/edit', {
             title: `Edytuj Konto`,
-            account: { _id: id, name, balance, currency, accountNumber, description, type },
-            name, balance, currency, accountNumber, description, type,
-            error_msg: req.flash('error_msg')
+            account: { id, name, balance, currency, accountNumber, description, type },
+            name, balance, currency, accountNumber, description, type
         });
     }
 };
-
-
-exports.deleteAccount = async (req, res) => {
-    try {
-        await Account.delete(req.params.id, req.session.token);
-        req.flash('success_msg', 'Konto zostało usunięte pomyślnie!');
-        res.redirect('/accounts');
-    } catch (error) {
-        console.error('Błąd podczas usuwania konta:', error.message);
-        req.flash('error_msg', error.message);
-        res.redirect('/accounts');
-    }
-};
-
 
 exports.renderShareAccountPage = async (req, res) => {
     try {
         const account = await Account.getById(req.params.id, req.session.token);
-        if (!account) {
-            req.flash('error_msg', 'Konto nie znaleziono.');
-            return res.redirect('/accounts');
-        }
         
-        if (account.ownerId.toString() !== req.user._id.toString()) {
-            req.flash('error_msg', 'Nie masz uprawnień do udostępniania tego konta.');
-            return res.redirect('/accounts');
-        }
+        // Pobieramy ID z sesji - upewnij się, że nazwa pola pasuje (id lub userId)
+        const currentUserId = req.session.user ? req.session.user.id : null;
 
-        res.render('accounts/share', {
-            title: `Udostępnij Konto: ${account.name}`,
-            account: account
+        res.render('accounts/share', { 
+            account, 
+            currentUserId, // przekazujemy to jawnie
+            title: 'Udostępnij konto' 
         });
     } catch (error) {
-        console.error('Błąd podczas ładowania strony udostępniania konta:', error.message);
-        req.flash('error_msg', error.message);
+        console.error('Błąd w renderShareAccountPage:', error.message);
+        req.flash('error_msg', 'Nie udało się załadować strony udostępniania.');
         res.redirect('/accounts');
     }
 };
-
 
 exports.shareAccount = async (req, res) => {
     const { id } = req.params;
     const { email, accessLevel } = req.body;
 
-    if (!email || !accessLevel) {
-        req.flash('error_msg', 'Email użytkownika i poziom dostępu są wymagane.');
-        return res.redirect(`/accounts/share/${id}`);
-    }
-
     try {
         await Account.addSharedUser(id, email, accessLevel, req.session.token);
-        req.flash('success_msg', `Konto zostało udostępnione użytkownikowi ${email} z poziomem dostępu ${accessLevel}.`);
+        req.flash('success_msg', `Konto zostało udostępnione użytkownikowi ${email}.`);
         res.redirect(`/accounts/edit/${id}`); 
     } catch (error) {
-        console.error('Błąd podczas udostępniania konta:', error.message);
         req.flash('error_msg', error.message);
         res.redirect(`/accounts/share/${id}`);
     }
 };
 
+exports.deleteAccount = async (req, res) => {
+    try {
+        await Account.delete(req.params.id, req.session.token);
+        req.flash('success_msg', 'Konto usunięte.');
+        res.redirect('/accounts');
+    } catch (error) {
+        req.flash('error_msg', error.message);
+        res.redirect('/accounts');
+    }
+};
 
 exports.removeSharedUser = async (req, res) => {
     const { accountId, sharedUserId } = req.params;
-
     try {
         await Account.removeSharedUser(accountId, sharedUserId, req.session.token);
         req.flash('success_msg', 'Użytkownik współdzielący konto został usunięty.');
@@ -188,8 +150,6 @@ exports.removeSharedUser = async (req, res) => {
         res.redirect(`/accounts/edit/${accountId}`);
     }
 };
-
-
 
 exports.updateSharedUserAccess = async (req, res) => {
     const { accountId, sharedUserId } = req.params;

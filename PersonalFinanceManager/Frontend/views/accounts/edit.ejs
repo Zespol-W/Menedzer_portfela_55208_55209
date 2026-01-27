@@ -2,7 +2,8 @@
     <div class="col-md-8 m-auto">
         <div class="card card-body bg-secondary text-light">
             <h1 class="text-center mb-3 text-light">Edytuj Konto: <%= account.name %></h1>
-            <form action="/accounts/edit/<%= account._id %>" method="POST">
+            
+            <form action="/accounts/edit/<%= account.id %>" method="POST">
                 <div class="mb-3">
                     <label for="name" class="form-label">Nazwa Konta</label>
                     <input
@@ -23,16 +24,16 @@
                         name="balance"
                         class="form-control"
                         step="0.01"
-                        value="<%= account.balance.toFixed(2) %>"
+                        value="<%= account.balance ? account.balance.toFixed(2) : '0.00' %>"
                         required
                     />
                 </div>
                 <div class="mb-3">
                     <label for="currency" class="form-label">Waluta</label>
                     <select id="currency" name="currency" class="form-select" required>
-                        <option value="PLN" <%= account.currency === 'PLN' ? 'selected' : '' %>>PLN</option>
-                        <option value="USD" <%= account.currency === 'USD' ? 'selected' : '' %>>USD</option>
-                        <option value="EUR" <%= account.currency === 'EUR' ? 'selected' : '' %>>EUR</option>
+                        <option value="PLN" <%= account.currencyCode === 'PLN' ? 'selected' : '' %>>PLN</option>
+                        <option value="USD" <%= account.currencyCode === 'USD' ? 'selected' : '' %>>USD</option>
+                        <option value="EUR" <%= account.currencyCode === 'EUR' ? 'selected' : '' %>>EUR</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -49,10 +50,10 @@
                 <div class="mb-3">
                     <label for="type" class="form-label">Typ Konta</label>
                     <select id="type" name="type" class="form-select" required>
-                        <option value="personal" <%= account.type === 'personal' ? 'selected' : '' %>>Osobiste</option>
-                        <option value="savings" <%= account.type === 'savings' ? 'selected' : '' %>>Oszczędnościowe</option>
-                        <option value="business" <%= account.type === 'business' ? 'selected' : '' %>>Firmowe</option>
-                        <option value="other" <%= account.type === 'other' ? 'selected' : '' %>>Inne</option>
+                        <option value="personal" <%= account.type === 0 ? 'selected' : '' %>>Osobiste</option>
+                        <option value="savings" <%= account.type === 1 ? 'selected' : '' %>>Oszczędnościowe</option>
+                        <option value="business" <%= account.type === 2 ? 'selected' : '' %>>Firmowe</option>
+                        <option value="other" <%= account.type === 3 ? 'selected' : '' %>>Inne</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -74,8 +75,9 @@
             <hr class="text-light">
 
             <h2 class="text-light mt-4">Współdzielenie Konta</h2>
-            <% if (account.ownerId.toString() === user._id.toString()) { %>
-                <form action="/accounts/share/<%= account._id %>" method="GET" class="d-grid gap-2 mb-3">
+            
+            <% if (account.ownerId && user && account.ownerId.toString() === user.id.toString()) { %>
+                <form action="/accounts/share/<%= account.id %>" method="GET" class="d-grid gap-2 mb-3">
                     <button type="submit" class="btn btn-info">Udostępnij to Konto</button>
                 </form>
 
@@ -84,15 +86,15 @@
                     <ul class="list-group mb-3">
                         <% account.sharedWith.forEach(sharedUser => { %>
                             <li class="list-group-item list-group-item-dark d-flex justify-content-between align-items-center">
-                                <%= sharedUser.userId %> (ID) - Dostęp:
-                                <form action="/accounts/<%= account._id %>/share/<%= sharedUser.userId %>/update" method="POST" class="d-inline-flex align-items-center">
+                                <%= sharedUser.email || sharedUser.userId %> - Dostęp:
+                                <form action="/accounts/<%= account.id %>/share/<%= sharedUser.userId %>/update" method="POST" class="d-inline-flex align-items-center">
                                     <select name="accessLevel" class="form-select form-select-sm me-2">
                                         <option value="read" <%= sharedUser.accessLevel === 'read' ? 'selected' : '' %>>Tylko odczyt</option>
                                         <option value="write" <%= sharedUser.accessLevel === 'write' ? 'selected' : '' %>>Odczyt/Zapis</option>
                                     </select>
                                     <button type="submit" class="btn btn-sm btn-outline-warning me-2">Zmień dostęp</button>
                                 </form>
-                                <form action="/accounts/<%= account._id %>/share/<%= sharedUser.userId %>/remove" method="POST" class="d-inline">
+                                <form action="/accounts/<%= account.id %>/share/<%= sharedUser.userId %>/remove" method="POST" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" onsubmit="return confirm('Czy na pewno chcesz usunąć tego użytkownika?');">Usuń</button>
                                 </form>
                             </li>
@@ -105,7 +107,7 @@
                 <% } %>
             <% } else { %>
                 <div class="alert alert-warning text-dark" role="alert">
-                    Tylko właściciel konta może zarządzać jego udostępnianiem. Twój poziom dostępu: **<%= account.accessLevel || 'Brak' %>**.
+                    Tylko właściciel konta może zarządzać jego udostępnianiem.
                 </div>
             <% } %>
         </div>

@@ -1,7 +1,6 @@
 const Transaction = require('../models/Transaction');
 const Account = require('../models/Account');
 const Category = require('../models/Category');
-const { ensureAuthenticated } = require('./authController');
 
 exports.renderTransactionsPage = async (req, res) => {
     const { accountId } = req.params;
@@ -13,13 +12,16 @@ exports.renderTransactionsPage = async (req, res) => {
         }
 
         const transactions = await Transaction.getAll(accountId, req.session.token);
-
         const categories = await Category.getAll(req.session.token);
-        const categoryMap = new Map(categories.map(cat => [cat._id.toString(), cat.name]));
+
+        // Poprawka: cat.id zamiast cat._id
+        const categoryMap = new Map(categories.map(cat => [(cat.id || cat._id).toString(), cat.name]));
 
         const formattedTransactions = transactions.map(t => ({
             ...t,
-            categoryName: categoryMap.get(t.category) || 'N/A',
+            // Poprawka: t.id zamiast t._id dla spójności w widoku
+            id: t.id || t._id,
+            categoryName: categoryMap.get((t.categoryId || t.category || '').toString()) || 'N/A',
             formattedDate: new Date(t.date).toLocaleDateString('pl-PL', {
                 year: 'numeric', month: 'numeric', day: 'numeric',
                 hour: '2-digit', minute: '2-digit'
@@ -33,7 +35,7 @@ exports.renderTransactionsPage = async (req, res) => {
         });
     } catch (error) {
         console.error('Błąd podczas ładowania listy transakcji:', error.message);
-        req.flash('error_msg', error.message);
+        req.flash('error_msg', 'Nie udało się załadować transakcji.');
         res.redirect(`/accounts`);
     }
 };
@@ -42,10 +44,6 @@ exports.renderAddTransactionPage = async (req, res) => {
     const { accountId } = req.params;
     try {
         const account = await Account.getById(accountId, req.session.token);
-        if (!account) {
-            req.flash('error_msg', 'Konto nie znaleziono.');
-            return res.redirect('/accounts');
-        }
         const categories = await Category.getAll(req.session.token);
         const userAccounts = await Account.getAll(req.session.token);
 
@@ -53,16 +51,15 @@ exports.renderAddTransactionPage = async (req, res) => {
             title: `Dodaj Transakcję do konta: ${account.name}`,
             account: account,
             categories: categories,
-            userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
+            // Poprawka: acc.id zamiast acc._id
+            userAccounts: userAccounts.filter(acc => (acc.id || acc._id).toString() !== accountId.toString()),
             type: 'expense',
             amount: '',
             description: '',
             category: ''
         });
     } catch (error) {
-        console.error('Błąd podczas ładowania formularza dodawania transakcji:', error.message);
-        req.flash('error_msg', error.message);
-        res.redirect(`/accounts/${accountId}/transactions`);
+        res.redirect('/accounts');
     }
 };
 
@@ -70,258 +67,81 @@ exports.addTransaction = async (req, res) => {
     const { accountId } = req.params;
     const { type, category, amount, description, senderAccountId, receiverAccountId } = req.body;
 
-    let errors = [];
-    if (!type || !amount) {
-        errors.push('Typ i kwota transakcji są wymagane.');
-    }
-    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-        errors.push('Kwota musi być liczbą dodatnią.');
-    }
-
-    if (type === 'transfer') {
-        if (!senderAccountId || !receiverAccountId) {
-            errors.push('Dla transferu wymagane są konta nadawcy i odbiorcy.');
-        }
-        if (senderAccountId === receiverAccountId) {
-            errors.push('Konto nadawcy i odbiorcy nie mogą być takie same.');
-        }
-    } else if (!category) {
-        errors.push('Kategoria jest wymagana dla wydatków i dochodów.');
-    }
-
     try {
         const account = await Account.getById(accountId, req.session.token);
-        if (!account) {
-            errors.push('Konto nie znaleziono.');
-        }
-        const categories = await Category.getAll(req.session.token);
-        const userAccounts = await Account.getAll(req.session.token);
-
-        if (errors.length > 0) {
-            req.flash('error_msg', errors.join(', '));
-            return res.render('transactions/add', {
-                title: `Dodaj Transakcję do konta: ${account.name}`,
-                account: account,
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        }
-
-        const selectedCategory = categories.find(cat => cat._id.toString() === category);
-        if (type !== 'transfer' && !selectedCategory) {
-            errors.push('Wybrana kategoria jest nieprawidłowa.');
-            req.flash('error_msg', errors.join(', '));
-            return res.render('transactions/add', {
-                title: `Dodaj Transakcję do konta: ${account.name}`,
-                account: account,
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        }
-
         
         let transactionData = {
-            accountId: accountId, 
-            type,
+            // Mapowanie na nazwy, które prawdopodobnie przyjmuje Twoje DTO w .NET
+            accountId: parseInt(accountId), 
+            type: type === 'income' ? 0 : (type === 'expense' ? 1 : 2), // Zamiana na Enum (0,1,2)
             amount: parseFloat(amount),
-            currency: account.currency,
-            description,
+            currencyCode: account.currencyCode || account.currency,
+            description: description,
+            categoryId: category ? parseInt(category) : null,
+            senderAccountId: senderAccountId ? parseInt(senderAccountId) : null,
+            receiverAccountId: receiverAccountId ? parseInt(receiverAccountId) : null
         };
 
-        if (type === 'transfer') {
-            transactionData.senderAccountId = senderAccountId;
-            transactionData.receiverAccountId = receiverAccountId;
-            transactionData.category = null;
-        } else {
-            transactionData.category = category;
-            transactionData.senderAccountId = null;
-            transactionData.receiverAccountId = null;
-        }
-
         await Transaction.add(accountId, transactionData, req.session.token); 
-        req.flash('success_msg', 'Transakcja została dodana pomyślnie!');
+        req.flash('success_msg', 'Transakcja dodana!');
         res.redirect(`/accounts/${accountId}/transactions`);
     } catch (error) {
-        console.error('Błąd podczas dodawania transakcji:', error.message);
+        req.flash('error_msg', 'Błąd zapisu: ' + error.message);
+        res.redirect(`/accounts/${accountId}/transactions`);
+    }
+};
+
+exports.deleteTransaction = async (req, res) => {
+    const { accountId, transactionId } = req.params;
+    try {
+        // Upewniamy się, że używamy poprawnej nazwy ID
+        await Transaction.delete(transactionId, req.session.token);
+        req.flash('success_msg', 'Transakcja usunięta.');
+        res.redirect(`/accounts/${accountId}/transactions`);
+    } catch (error) {
         req.flash('error_msg', error.message);
-        try {
-            const account = await Account.getById(accountId, req.session.token);
-            const categories = await Category.getAll(req.session.token);
-            const userAccounts = await Account.getAll(req.session.token);
-            res.render('transactions/add', {
-                title: `Dodaj Transakcję do konta: ${account.name}`,
-                account: account,
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        } catch (innerError) {
-            console.error('Błąd podczas ponownego ładowania formularza transakcji:', innerError.message);
-            res.redirect(`/accounts/${accountId}/transactions`);
-        }
+        res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
 
 exports.renderEditTransactionPage = async (req, res) => {
     const { accountId, transactionId } = req.params;
     try {
-        const account = await Account.getById(accountId, req.session.token);
-        if (!account) {
-            req.flash('error_msg', 'Konto nie znaleziono.');
-            return res.redirect('/accounts');
-        }
-
-        
-        const transaction = await Transaction.getById(accountId, transactionId, req.session.token);
-        if (!transaction) {
-            req.flash('error_msg', 'Transakcja nie znaleziona.');
-            return res.redirect(`/accounts/${accountId}/transactions`);
-        }
-
-        const categories = await Category.getAll(req.session.token);
-        const userAccounts = await Account.getAll(req.session.token);
-
-        res.render('transactions/edit', {
-            title: `Edytuj Transakcję: ${transaction.description}`,
-            account: account,
-            transaction: transaction,
-            categories: categories,
-            userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-            type: transaction.type,
-            amount: transaction.amount,
-            description: transaction.description,
-            category: transaction.category ? transaction.category.toString() : '',
-            senderAccountId: transaction.senderAccountId ? transaction.senderAccountId.toString() : '',
-            receiverAccountId: transaction.receiverAccountId ? transaction.receiverAccountId.toString() : ''
+        const transaction = await Transaction.getById(transactionId, req.session.token);
+        const categories = await Transaction.getCategories(req.session.token);
+        res.render('transactions/edit', { 
+            transaction, 
+            categories, 
+            accountId,
+            title: 'Edytuj transakcję' 
         });
     } catch (error) {
-        console.error('Błąd podczas ładowania strony edycji transakcji:', error.message);
-        req.flash('error_msg', error.message);
-        res.redirect(`/accounts/${accountId}/transactions`);
+        console.error('Błąd renderowania edycji transakcji:', error.message);
+        req.flash('error_msg', 'Nie udało się pobrać danych transakcji.');
+        res.redirect(`/accounts/edit/${accountId}`);
     }
 };
 
 exports.updateTransaction = async (req, res) => {
     const { accountId, transactionId } = req.params;
-    const { type, category, amount, description, senderAccountId, receiverAccountId } = req.body;
-
-    let errors = [];
-    if (!type || !amount) {
-        errors.push('Typ i kwota transakcji są wymagane.');
-    }
-    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-        errors.push('Kwota musi być liczbą dodatnią.');
-    }
-
-    if (type === 'transfer') {
-        if (!senderAccountId || !receiverAccountId) {
-            errors.push('Dla transferu wymagane są konta nadawcy i odbiorcy.');
-        }
-        if (senderAccountId === receiverAccountId) {
-            errors.push('Konto nadawcy i odbiorcy nie mogą być takie same.');
-        }
-    } else if (!category) {
-        errors.push('Kategoria jest wymagana dla wydatków i dochodów.');
-    }
-
     try {
-        const account = await Account.getById(accountId, req.session.token);
-        if (!account) {
-            errors.push('Konto nie znaleziono.');
-        }
-        const categories = await Category.getAll(req.session.token);
-        const userAccounts = await Account.getAll(req.session.token);
-
-        if (errors.length > 0) {
-            req.flash('error_msg', errors.join(', '));
-            return res.render('transactions/edit', {
-                title: `Edytuj Transakcję`,
-                account: account,
-                transaction: { _id: transactionId, accountId, type, category, amount, description, senderAccountId, receiverAccountId },
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        }
-
-        const selectedCategory = categories.find(cat => cat._id.toString() === category);
-        if (type !== 'transfer' && !selectedCategory) {
-            errors.push('Wybrana kategoria jest nieprawidłowa.');
-            req.flash('error_msg', errors.join(', '));
-            return res.render('transactions/edit', {
-                title: `Edytuj Transakcję`,
-                account: account,
-                transaction: { _id: transactionId, accountId, type, category, amount, description, senderAccountId, receiverAccountId },
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        }
-
-        
-        let updateData = {
-            accountId: accountId, 
-            type,
-            amount: parseFloat(amount),
-            currency: account.currency,
-            description,
-        };
-
-        if (type === 'transfer') {
-            updateData.senderAccountId = senderAccountId;
-            updateData.receiverAccountId = receiverAccountId;
-            updateData.category = null;
-        } else {
-            updateData.category = category;
-            updateData.senderAccountId = null;
-            updateData.receiverAccountId = null;
-        }
-
-        
-        await Transaction.update(accountId, transactionId, updateData, req.session.token);
-        req.flash('success_msg', 'Transakcja została zaktualizowana pomyślnie!');
-        res.redirect(`/accounts/${accountId}/transactions`);
+        await Transaction.update(transactionId, req.body, req.session.token);
+        req.flash('success_msg', 'Transakcja zaktualizowana.');
+        res.redirect(`/accounts/edit/${accountId}`);
     } catch (error) {
-        console.error('Błąd podczas aktualizacji transakcji:', error.message);
-        req.flash('error_msg', error.message);
-        try {
-            const account = await Account.getById(accountId, req.session.token);
-            const categories = await Category.getAll(req.session.token);
-            const userAccounts = await Account.getAll(req.session.token);
-            res.render('transactions/edit', {
-                title: `Edytuj Transakcję`,
-                account: account,
-                transaction: { _id: transactionId, accountId, type, category, amount, description, senderAccountId, receiverAccountId },
-                categories: categories,
-                userAccounts: userAccounts.filter(acc => acc._id.toString() !== accountId),
-                type, category, amount, description, senderAccountId, receiverAccountId,
-                error_msg: req.flash('error_msg')
-            });
-        } catch (innerError) {
-            console.error('Błąd podczas ponownego ładowania formularza edycji transakcji:', innerError.message);
-            res.redirect(`/accounts/${accountId}/transactions`);
-        }
+        req.flash('error_msg', 'Błąd podczas aktualizacji: ' + error.message);
+        res.redirect(`/accounts/edit/${accountId}`);
     }
 };
-
 
 exports.deleteTransaction = async (req, res) => {
     const { accountId, transactionId } = req.params;
     try {
-        
         await Transaction.delete(transactionId, req.session.token);
-        req.flash('success_msg', 'Transakcja została usunięta pomyślnie!');
-        res.redirect(`/accounts/${accountId}/transactions`);
+        req.flash('success_msg', 'Transakcja usunięta.');
+        res.redirect(`/accounts/edit/${accountId}`);
     } catch (error) {
-        console.error('Błąd podczas usuwania transakcji:', error.message);
-        req.flash('error_msg', error.message);
-        res.redirect(`/accounts/${accountId}/transactions`);
+        req.flash('error_msg', 'Błąd podczas usuwania: ' + error.message);
+        res.redirect(`/accounts/edit/${accountId}`);
     }
 };
