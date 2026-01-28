@@ -6,8 +6,8 @@
     <hr class="text-light">
 
     <div class="d-flex justify-content-end mb-3">
-    <a href="/accounts/<%= account.id %>/transactions/add" class="btn btn-success">Dodaj Nową Transakcję</a>
-</div>
+        <a href="/accounts/<%= account.id || account.Id %>/transactions/add" class="btn btn-success">Dodaj Nową Transakcję</a>
+    </div>
 
     <% if (transactions && transactions.length > 0) { %>
     <div class="table-responsive">
@@ -17,7 +17,7 @@
                     <th scope="col">Data</th>
                     <th scope="col">Kategoria</th>
                     <th scope="col">Opis</th>
-                    <th scope="col">Kwota</th>
+                    <th scope="col" class="text-end">Kwota</th>
                     <th scope="col">Typ</th>
                     <th scope="col">Akcje</th>
                 </tr>
@@ -25,22 +25,37 @@
             <tbody>
                 <% transactions.forEach(transaction => { %>
                 <tr>
-                    <td><%= new Date(transaction.date).toLocaleDateString() %></td>
-                    <td><%= transaction.categoryName || transaction.category || 'Brak' %></td>
-                    <td><%= transaction.description || 'Brak opisu' %></td>
-                    <td class="<%= transaction.type === 'expense' || transaction.type === 1 ? 'text-danger' : 'text-success' %>">
-                        <%= (transaction.type === 'expense' || transaction.type === 1) ? '-' : '+' %> <%= Number(transaction.amount).toFixed(2) %>
+                    <td><%= transaction.formattedDate %></td>
+                    <td><%= transaction.categoryName || 'Brak' %></td>
+                    <td><%= transaction.name || transaction.description || 'Brak opisu' %></td>
+                    <td class="text-end fw-bold">
+                        <% 
+                           // Bezpieczne parsowanie kwoty
+                           let amt = parseFloat(transaction.amount || transaction.Amount || 0);
+                        %>
+                        <%= amt.toFixed(2) %> <%= account.currencyCode || account.currency %>
                     </td>
                     <td>
-                        <span class="badge <%= transaction.type === 'expense' || transaction.type === 1 ? 'bg-danger' : 'bg-success' %>">
-                            <%= transaction.type === 'expense' || transaction.type === 1 ? 'Wydatek' : 'Przychód' %>
-                        </span>
+                        <% if (amt < 0) { %>
+                            <span class="badge border border-secondary text-secondary">Wydatek</span>
+                        <% } else { %>
+                            <span class="badge border border-light text-light">Przychód</span>
+                        <% } %>
                     </td>
                     <td>
                         <div class="btn-group btn-group-sm">
-                            <a href="/accounts/<%= account.id %>/transactions/edit/<%= transaction.id %>" class="btn btn-primary">Edytuj</a>
-                            <form action="/accounts/<%= account.id %>/transactions/delete/<%= transaction.id %>" method="POST" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć tę transakcję?')">
-                                <button type="submit" class="btn btn-danger">Usuń</button>
+                            <% 
+                               // Definiujemy ID raz, żeby nie było pomyłek
+                               const tId = transaction.id || transaction.Id;
+                               const aId = account.id || account.Id;
+                            %>
+                            
+                            <a href="/accounts/<%= aId %>/transactions/edit/<%= tId %>" class="btn btn-outline-primary">
+                                Edytuj
+                            </a>
+
+                            <form action="/accounts/<%= aId %>/transactions/delete/<%= tId %>" method="POST" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć tę transakcję?')">
+                                <button type="submit" class="btn btn-outline-danger">Usuń</button>
                             </form>
                         </div>
                     </td>
@@ -50,6 +65,6 @@
         </table>
     </div>
     <% } else { %>
-        <div class="alert alert-info">Brak transakcji dla tego konta.</div>
+        <div class="alert alert-info bg-dark text-info border-info">Brak transakcji dla tego konta.</div>
     <% } %>
 </div>

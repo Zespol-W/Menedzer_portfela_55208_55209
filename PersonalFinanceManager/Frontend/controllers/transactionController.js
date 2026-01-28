@@ -2,160 +2,122 @@ const Transaction = require('../models/Transaction');
 const Account = require('../models/Account');
 const Category = require('../models/Category');
 
-// Wyświetlanie listy transakcji dla konkretnego konta
+// 1. LISTA TRANSAKCJI
 exports.renderTransactionsPage = async (req, res) => {
     const { accountId } = req.params;
     try {
         const account = await Account.getById(accountId, req.session.token);
-        if (!account) {
-            req.flash('error_msg', 'Konto nie zostało znalezione.');
-            return res.redirect('/accounts');
-        }
-
         const transactions = await Transaction.getAll(accountId, req.session.token);
         const categories = await Category.getAll(req.session.token);
 
-        // Mapowanie kategorii dla łatwiejszego wyświetlania nazw w tabeli
-        const categoryMap = new Map(categories.map(cat => [(cat.id || cat._id).toString(), cat.name]));
+        const categoryMap = new Map(categories.map(cat => [(cat.id || cat.Id || '').toString(), cat.name]));
 
         const formattedTransactions = transactions.map(t => ({
             ...t,
-            id: t.id || t._id,
-            categoryName: categoryMap.get((t.categoryId || t.category || '').toString()) || 'Brak',
-            formattedDate: new Date(t.date).toLocaleDateString('pl-PL', {
-                year: 'numeric', month: 'numeric', day: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            })
+            id: t.id || t.Id,
+            categoryName: categoryMap.get((t.categoryId || t.CategoryId || '').toString()) || 'Brak',
+            formattedDate: new Date(t.date || t.Date).toLocaleDateString('pl-PL')
         }));
 
         res.render('transactions/index', {
             title: `Transakcje: ${account.name}`,
-            account: account,
+            account,
             transactions: formattedTransactions
         });
     } catch (error) {
-        console.error('Błąd podczas ładowania listy transakcji:', error.message);
-        req.flash('error_msg', 'Nie udało się załadować transakcji.');
+        console.error('Błąd listy:', error.message);
         res.redirect('/accounts');
     }
 };
 
-// Renderowanie formularza dodawania nowej transakcji
+// 2. FORMULARZ DODAWANIA (GET)
 exports.renderAddTransactionPage = async (req, res) => {
     const { accountId } = req.params;
     try {
         const account = await Account.getById(accountId, req.session.token);
         const categories = await Category.getAll(req.session.token);
         const userAccounts = await Account.getAll(req.session.token);
-
-        res.render('transactions/add', {
-            title: `Dodaj Transakcję: ${account.name}`,
-            account: account,
-            categories: categories,
-            userAccounts: userAccounts.filter(acc => (acc.id || acc._id).toString() !== accountId.toString()),
-            type: 'expense',
-            amount: '',
-            description: '',
-            category: ''
-        });
+        res.render('transactions/add', { title: 'Dodaj', account, categories, userAccounts });
     } catch (error) {
-        console.error('Błąd renderowania strony dodawania:', error.message);
-        res.redirect('/accounts');
+        res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
 
-// Obsługa dodawania nowej transakcji (POST)
+// 3. DODAWANIE (POST)
 exports.addTransaction = async (req, res) => {
     const { accountId } = req.params;
-    const { type, category, amount, description, senderAccountId, receiverAccountId } = req.body;
-
+    const { amount, description, category } = req.body;
     try {
-        const account = await Account.getById(accountId, req.session.token);
-        
         const transactionData = {
-            accountId: parseInt(accountId), 
-            // Mapowanie na Enum w WebAPI: Income=0, Expense=1, Transfer=2
-            type: type === 'income' ? 0 : (type === 'expense' ? 1 : 2), 
-            amount: parseFloat(amount),
-            currencyCode: account.currencyCode || account.currency,
-            description: description || "",
-            name: description || "Nowa transakcja", // Pole Name często wymagane przez API
+            name: description || "Nowa transakcja",
+            amount: Math.abs(parseFloat(amount)),
+            accountId: parseInt(accountId),
             categoryId: category ? parseInt(category) : null,
-            senderAccountId: senderAccountId ? parseInt(senderAccountId) : null,
-            receiverAccountId: receiverAccountId ? parseInt(receiverAccountId) : null,
             date: new Date().toISOString()
         };
-
-        await Transaction.add(accountId, transactionData, req.session.token); 
-        req.flash('success_msg', 'Transakcja dodana pomyślnie!');
+        await Transaction.add(accountId, transactionData, req.session.token);
+        req.flash('success_msg', 'Dodano!');
         res.redirect(`/accounts/${accountId}/transactions`);
     } catch (error) {
-        console.error('Błąd zapisu transakcji:', error.response?.data || error.message);
-        req.flash('error_msg', 'Nie udało się dodać transakcji. Sprawdź poprawność danych.');
-        res.redirect(`/accounts/${accountId}/transactions/add`);
+        console.error('Błąd dodawania:', error.message);
+        res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
 
-// Renderowanie formularza edycji istniejącej transakcji
+// 4. FORMULARZ EDYCJI (GET) - TUTAJ BYŁ BŁĄD (brakowało accountId)
 exports.renderEditTransactionPage = async (req, res) => {
     const { accountId, transactionId } = req.params;
     try {
-        const transaction = await Transaction.getById(transactionId, req.session.token);
+        // Przekazujemy 3 argumenty do modelu
+        const transaction = await Transaction.getById(accountId, transactionId, req.session.token);
         const account = await Account.getById(accountId, req.session.token);
         const categories = await Category.getAll(req.session.token);
-        const userAccounts = await Account.getAll(req.session.token);
 
-        res.render('transactions/edit', { 
-            transaction, 
-            categories, 
+        res.render('transactions/edit', {
+            title: 'Edytuj',
+            transaction: { ...transaction, id: transaction.id || transaction.Id },
             account,
-            userAccounts,
-            title: 'Edytuj transakcję' 
+            categories
         });
     } catch (error) {
-        console.error('Błąd renderowania edycji transakcji:', error.message);
-        req.flash('error_msg', 'Nie udało się pobrać danych transakcji.');
+        console.error('Błąd wejścia w edycję:', error.message);
         res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
 
-// Obsługa aktualizacji transakcji (POST/PUT)
+// 5. AKTUALIZACJA (POST) - TUTAJ BYŁ BŁĄD (brakowało accountId)
 exports.updateTransaction = async (req, res) => {
     const { accountId, transactionId } = req.params;
-    const { type, category, amount, description } = req.body;
-
+    const { amount, description, category } = req.body;
     try {
         const transactionData = {
             id: parseInt(transactionId),
+            name: description || "Edycja",
+            amount: Math.abs(parseFloat(amount)),
             accountId: parseInt(accountId),
-            type: type === 'income' ? 0 : (type === 'expense' ? 1 : 2),
-            amount: parseFloat(amount),
-            description: description || "",
-            name: description || "Edytowana transakcja",
             categoryId: category ? parseInt(category) : null,
             date: new Date().toISOString()
         };
-
-        await Transaction.update(transactionId, transactionData, req.session.token);
-        req.flash('success_msg', 'Zmiany zostały zapisane.');
+        // Przekazujemy 4 argumenty do modelu
+        await Transaction.update(accountId, transactionId, transactionData, req.session.token);
+        req.flash('success_msg', 'Zaktualizowano!');
         res.redirect(`/accounts/${accountId}/transactions`);
     } catch (error) {
-        console.error('Błąd aktualizacji transakcji:', error.response?.data || error.message);
-        req.flash('error_msg', 'Błąd podczas aktualizacji transakcji.');
+        console.error('Błąd aktualizacji:', error.message);
         res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
 
-// Obsługa usuwania transakcji
+// 6. USUWANIE (POST) - TUTAJ BYŁ BŁĄD (brakowało accountId)
 exports.deleteTransaction = async (req, res) => {
     const { accountId, transactionId } = req.params;
     try {
-        await Transaction.delete(transactionId, req.session.token);
-        req.flash('success_msg', 'Transakcja została usunięta.');
+        // Przekazujemy 3 argumenty do modelu
+        await Transaction.delete(accountId, transactionId, req.session.token);
+        req.flash('success_msg', 'Usunięto!');
         res.redirect(`/accounts/${accountId}/transactions`);
     } catch (error) {
-        console.error('Błąd podczas usuwania:', error.message);
-        req.flash('error_msg', 'Nie udało się usunąć transakcji.');
+        console.error('Błąd usuwania:', error.message);
         res.redirect(`/accounts/${accountId}/transactions`);
     }
 };
