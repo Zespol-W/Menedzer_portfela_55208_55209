@@ -40,7 +40,7 @@ Możesz dostosować `CacheDurationMinutes` (np. 60), aby zmniejszyć liczbę zap
 ### 3. Uruchom kontenery Dockera
 
 - Upewnij się, że masz zainstalowany **Docker Desktop** (wymagany na Windows).
-- Otwórz terminal w głównym katalogu projektu (tam gdzie jest plik `docker-compose.yml`)
+- Otwórz terminal w katalogu `.\PersonalFinanceManager\` (tam gdzie jest plik `docker-compose.yml`)
 - Uruchom komendę:
 
 ```bash
